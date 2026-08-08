@@ -1,0 +1,45 @@
+<!doctype html><html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSOC.com</title><link rel="stylesheet" href="/static/styles.css"></head>
+<body>
+<aside><div class="brand"><b>D</b><div><strong>DeepSOC.com</strong><small>Security Operations</small></div></div>
+<nav><a class="active">▦ Dashboard</a><a href="#alerts">⚠ Alerts</a><a href="#incidents">◈ Incidents</a></nav>
+<div class="online">● Detection Engine Online</div></aside>
+<main><header><div><label>SECURITY OPERATIONS CENTER</label><h1>Threat Overview</h1></div><div id="updated">Updating… <button onclick="load()">↻</button></div></header>
+<section class="cards">
+<div><span>Total Events</span><strong id="events">100,000</strong><small>Live stream</small></div>
+<div><span>Active Alerts</span><strong id="alerts">—</strong><small>Detected anomalies</small></div>
+<div><span>Critical Threats</span><strong id="critical">—</strong><small class="red">Needs attention</small></div>
+<div><span>Open Incidents</span><strong id="incidents">—</strong><small>Investigation queue</small></div>
+</section>
+<section class="grid">
+<div class="panel"><div class="head"><div><h2>Threat Activity</h2><p>Recent anomaly severity</p></div><i>● LIVE</i></div><div id="bars" class="bars"></div></div>
+<div class="panel"><div class="head"><div><h2>Severity</h2><p>Current alert distribution</p></div></div><div id="severity"></div></div>
+</section>
+<section class="panel" id="alerts"><div class="head"><div><h2>Recent Alerts</h2><p>ML-detected security anomalies</p></div></div>
+<table><thead><tr><th>Severity</th><th>Source IP</th><th>Reason</th><th>Score</th><th>Status</th></tr></thead><tbody id="table"></tbody></table></section>
+<section class="panel" id="incidents"><div class="head"><div><h2>Incident Queue</h2><p>Cases requiring analyst investigation</p></div></div><div id="incidentList"></div></section>
+<footer>DeepSOC.com • AI-assisted SOC detection & response • <a href="/docs">Swagger API</a></footer>
+</main>
+<script>
+const demo=[
+{severity:"critical",source_ip:"10.0.0.54",reason:"Repeated authentication failures",anomaly_score:-.214,status:"open"},
+{severity:"high",source_ip:"10.0.0.82",reason:"Suspicious remote-access activity",anomaly_score:-.147,status:"open"},
+{severity:"high",source_ip:"10.0.0.31",reason:"Unusually high outbound traffic",anomaly_score:-.133,status:"open"},
+{severity:"medium",source_ip:"10.0.0.91",reason:"ML anomaly detected",anomaly_score:-.096,status:"open"},
+{severity:"medium",source_ip:"10.0.0.17",reason:"Repeated authentication failures",anomaly_score:-.091,status:"open"}];
+const demoInc=[{incident_id:101,status:"open",alert_id:"demo-critical"},{incident_id:102,status:"investigating",alert_id:"demo-high"}];
+const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function json(url,f){try{let r=await fetch(url,{cache:"no-store"});if(!r.ok)throw 0;return await r.json()}catch{return f}}
+async function load(){
+let [a,i]=await Promise.all([json("/api/alerts?limit=100",demo),json("/api/incidents?limit=50",demoInc)]);
+a=a.length?a:demo;i=i.length?i:demoInc;
+document.querySelector("#alerts").textContent=a.length;document.querySelector("#critical").textContent=a.filter(x=>x.severity=="critical").length;document.querySelector("#incidents").textContent=i.length;
+document.querySelector("#table").innerHTML=a.slice(0,12).map(x=>`<tr><td><em class="${x.severity}">${esc(x.severity)}</em></td><td class="mono">${esc(x.source_ip)}</td><td>${esc(x.reason)}</td><td class="mono">${Number(x.anomaly_score).toFixed(4)}</td><td>${esc(x.status||"open")}</td></tr>`).join("");
+let c={critical:0,high:0,medium:0};a.forEach(x=>c[x.severity]=(c[x.severity]||0)+1);let t=a.length||1;
+document.querySelector("#severity").innerHTML=Object.entries(c).map(([k,v])=>`<div class="sev"><span>${k}</span><b>${v}</b></div><div class="progress"><i class="${k}" style="width:${Math.max(5,v/t*100)}%"></i></div>`).join("");
+document.querySelector("#bars").innerHTML=Array.from({length:18},(_,n)=>`<i style="height:${20+Math.random()*70}%"></i>`).join("");
+document.querySelector("#incidentList").innerHTML=i.slice(0,6).map(x=>`<div class="incident"><b>Incident #${esc(x.incident_id)}</b><span>${esc(x.status)}</span></div>`).join("");
+document.querySelector("#updated").firstChild.textContent="Updated "+new Date().toLocaleTimeString()+" ";
+}load();setInterval(load,10000);
+</script></body></html>
