@@ -1,4 +1,6 @@
 import importlib
+import hashlib
+import re
 from html.parser import HTMLParser
 from pathlib import Path
 import pytest
@@ -66,3 +68,18 @@ def test_dashboard_has_unique_ids(client):
     p=IDs();p.feed(client.get('/').text)
     assert len(p.ids)==len(set(p.ids))
     assert client.get('/static/app.js').status_code==200
+
+def test_dashboard_assets_use_content_versions(client):
+    response=client.get('/')
+    assert response.headers['cache-control']=='no-store'
+    urls=re.findall(r'(?:href|src)="(/assets/[^\"]+)"',response.text)
+    assert len(urls)==2
+    for url in urls:
+        asset=client.get(url)
+        assert asset.status_code==200
+        version,filename=url.split('/')[-2:]
+        assert hashlib.sha256(asset.content).hexdigest()[:16]==version
+        assert 'immutable' in asset.headers['cache-control']
+        assert asset.content==Path('static',filename).read_bytes()
+    assert client.get('/assets/outdated/styles.css').status_code==404
+    assert client.get('/assets/outdated/app.js').status_code==404

@@ -2,10 +2,11 @@ import asyncio
 import os
 import secrets
 import time
+import hashlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from kafka.errors import KafkaError
 from .models import SecurityLog, IncidentUpdate, ResponseRequest
@@ -18,6 +19,8 @@ from .detection import process_event
 from . import simulator
 
 STATIC_DIR=Path(__file__).resolve().parent.parent/'static'
+ASSET_HASHES={name:hashlib.sha256((STATIC_DIR/name).read_bytes()).hexdigest()[:16]
+              for name in ('styles.css','app.js')}
 state={'mode':'unknown','detector':None,'producer':None,'sim_task':None,'sim_stop':None}
 
 @asynccontextmanager
@@ -53,12 +56,23 @@ async def access_control(request:Request,call_next):
     response.headers['X-Content-Type-Options']='nosniff'
     response.headers['Referrer-Policy']='same-origin'
     response.headers['X-Frame-Options']='DENY'
-    if request.url.path.startswith('/api/'):
+    if request.url.path=='/' or request.url.path.startswith('/api/'):
         response.headers['Cache-Control']='no-store'
     return response
 
 @app.get('/',include_in_schema=False)
-def dashboard():return FileResponse(STATIC_DIR/'index.html')
+def dashboard():
+    html=(STATIC_DIR/'index.html').read_text(encoding='utf-8-sig')
+    for name,version in ASSET_HASHES.items():
+        html=html.replace(f'/static/{name}',f'/assets/{version}/{name}')
+    return HTMLResponse(html)
+
+@app.get('/assets/{version}/{filename}',include_in_schema=False)
+def versioned_asset(version:str,filename:str):
+    if ASSET_HASHES.get(filename)!=version:
+        raise HTTPException(404,'Asset version not found')
+    return FileResponse(STATIC_DIR/filename,headers={
+        'Cache-Control':'public, max-age=31536000, immutable'})
 
 @app.get('/health')
 def health():
