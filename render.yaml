@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: deepsoc
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SOC_MODE
+        value: demo
+      - key: DB_PATH
+        value: /data/soc.db
+      - key: DEMO_EVENTS_PER_SEC
+        value: "2"
+      - key: API_KEY
+        generateValue: true
